@@ -1,0 +1,41 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+
+<!--
+ Copyright (C) 2011 GeekGene, All Rights Reserved.
+-->
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+	<head>
+		<title>Commons Room UI Test</title>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+		<style type="text/css" media="all">
+/* <![CDATA[ */
+
+/* ]]> */
+		</style>
+		<script type="text/javascript" src="crui.js"></script>
+		<script type="text/javascript">
+/* <![CDATA[ */
+function onCruiLoad()
+{
+	crui.setupRoom( 
+			document.getElementById("cruiDiv"),
+			"Commons-Room.png",
+			[600,400],
+			[
+			[50,30,110,30],
+			[40,75,100,75],
+			[30,125,90,125],
+			[20,180,80,180],
+			[10,240,70,240]
+			] );
+}
+crui.setLoadedCallback(onCruiLoad);
+/* ]]> */
+		</script>
+	</head>
+	<body>
+		<div id="cruiDiv"></div>
+	</body>
+</html>
+
