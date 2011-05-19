@@ -14,6 +14,7 @@ import sys, traceback
 
 import os
 import json
+import socket
 
 def get_well(name, default=""):
 	val = form.getfirst(name)
@@ -27,6 +28,16 @@ def my_formatException():
 	for str in strs:
 		out += str.replace('\n','\r\n')
 	return out
+
+def doSend(s,data):
+	dOut = ""
+	if not data is None:
+		s.send(data+"\n")
+	try:
+		dOut += s.recv(4096)
+	except:
+		raise
+	return dOut
 
 def main():
 	the_top = "Expires: Mon, 26 Jul 1997 05:00:00 GMT\n"
@@ -45,13 +56,28 @@ def main():
 		if os.environ.has_key( 'REMOTE_ADDR' ):
 			RemoteAddr = os.environ['REMOTE_ADDR']
 		if os.environ.has_key( 'HTTP_USER_AGENT' ):
-			UserAgent = os.environ['HTTP_USER_AGENT'];
+			UserAgent = os.environ['HTTP_USER_AGENT']
 
-		dataOut = ["testing","yep",3];
+		username = get_well("username","no-one")
+		msg = get_well("msg","gc")
+		data = get_well("data",None)
 
-		dataOut = json.write( dataOut )
+		s = socket.socket(socket.AF_INET)
+		s.settimeout(5)
+		s.connect(("208.78.103.116",3333))
+		s.settimeout(1)
 
-		print the_top + dataOut
+		doSend(s,None)
+
+		doSend(s,username)
+
+		if not (data is None):
+			msg += " " + data
+		dataOut = doSend(s,msg)
+
+		print the_top + dataOut[:-3]
+
+		s.close()
 
 	except BaseException, data:
 

@@ -10,9 +10,13 @@
 		<meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
 		<style type="text/css" media="all">
 /* <![CDATA[ */
-
+body{
+	font-family: Arial, Verdana, sans-serif;
+	font-size: 90%;
+}
 /* ]]> */
 		</style>
+		<script type="text/javascript" src="json2.js"></script>
 		<script type="text/javascript" src="crui.js"></script>
 		<script type="text/javascript">
 /* <![CDATA[ */
@@ -29,6 +33,10 @@ function onCruiLoad()
 			[20,180,80,180],
 			[10,240,70,240]
 			] );
+	var dbg = document.getElementById("cruiDebug");
+	dbg.style.position="absolute";
+	dbg.style.top="400px";
+	crui.setDebugWidget(dbg);
 }
 crui.setLoadedCallback(onCruiLoad);
 /* ]]> */
@@ -36,6 +44,7 @@ crui.setLoadedCallback(onCruiLoad);
 	</head>
 	<body>
 		<div id="cruiDiv"></div>
+		<textarea wrap="off" id="cruiDebug" rows="8" cols="80"></textarea>
 	</body>
 </html>
 

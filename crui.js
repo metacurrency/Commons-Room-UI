@@ -59,14 +59,82 @@ if( !this.crui )
 			this._initWidget();
 		},
 
+		setDebugWidget:function( obj )
+		{
+			this._debugWidget = obj;
+			this._debugWidget.value = "";
+		},
+
 		init:function()
 		{
 			this._loaded();
 		},
 
+		_sendReq:function( msg, data )
+		{
+			if( this._lastReq!=null )
+				return;
+			this._lastReq = msg;
+
+			var d = new Date();
+			d = '?time=' + d.getTime();
+
+			var form_data = "username="+encodeURIComponent(
+					this._username);
+			form_data += "&msg="+encodeURIComponent(msg);
+			if( data )
+			{
+				form_data += "&data="+encodeURIComponent(data);
+			}
+
+			var url = "/cgi-bin/crui.py"+d;
+
+			this._debug( "SEND " + url + "\n  (" + form_data + ")\n" );
+
+			crui_http.sendRequest( url, 
+					function( d )
+					{
+						crui._gotData( d );
+					}, 
+					form_data
+					);
+		},
+
+		_debug:function(str)
+		{
+			if( !this._debugWidget )
+				return
+			var s = str + this._debugWidget.value;
+			this._debugWidget.value = s;
+		},
+
+		_debugJson:function(obj)
+		{
+			out = "";
+			if( typeof obj == "object" )
+			{
+				out += "{";
+				for( var k in obj )
+				{
+					if( out.length > 1 )
+						out+=",";
+					out += k + "=" + this._debug(obj[k]);
+				}
+				out += "}";
+			}
+			else
+				out += obj;
+			return out;
+		},
+
 		_gotData:function( data )
 		{
-			alert(data);
+			this._debug( "GOT ("+this._lastReq+") "+data+"\n" );
+			data = JSON.parse(data);
+			if( !this._running && this._lastReq == "gc" )
+				this._running = true;
+			this._lastReq = null;
+			//alert( this._debugJson(data) );
 		},
 
 		_initWidget:function()
@@ -77,15 +145,14 @@ if( !this.crui )
 			this._divWrap.style.position = "absolute";
 			this._divWrap.style.width = this._imgSize[0]+"px";
 			this._divWrap.style.height = this._imgSize[1]+"px";
+			this._parent.appendChild(this._divWrap);
 
 			var img = document.createElement("img");
 			img.src=this._imgUrl;
 			img.width=this._imgSize[0];
 			img.height=this._imgSize[1];
 			img.zIndex = 20;
-
 			this._divWrap.appendChild(img);
-			this._parent.appendChild(this._divWrap);
 
 			for( var i=0; i<this._avatarLocs.length; ++i )
 			{
@@ -98,13 +165,13 @@ if( !this.crui )
 				avW.style.top = avLoc[1]+"px";
 				avW.style.border = "solid 2px #222222"
 				avW.zIndex = 40;
+				this._divWrap.appendChild(avW);
 				var av = document.createElement("img");
 				av.src = "no_icon.png";
 				av.width=50;
 				av.height=50;
 				av.zIndex = 41;
 				avW.appendChild(av);
-				this._divWrap.appendChild(avW);
 
 				var stickLoc = this._avatarLocs[i];
 				var stickW = document.createElement("div");
@@ -113,16 +180,14 @@ if( !this.crui )
 				stickW.style.position = "absolute";
 				stickW.style.left = stickLoc[2]+"px";
 				stickW.style.top = stickLoc[3]+"px";
-				//stickW.style.border = "solid 2px #222222"
 				stickW.style.backgroundColor = "#ffffff";
 				stickW.zIndex = 60;
+				this._divWrap.appendChild(stickW);
 				var stick = document.createElement("img");
-				//stick.src = "stick_none.png";
 				stick.width=20;
 				stick.height=40;
 				stick.zIndex = 61;
 				stickW.appendChild(stick);
-				this._divWrap.appendChild(stickW);
 
 				this._avatarSticks.push(
 						new crui_stick(stickW,stick));
@@ -132,14 +197,68 @@ if( !this.crui )
 						}, this._avatarSticks.length-1 );
 			}
 
-			var d = new Date();
-			d = '?time=' + d.getTime();
+			this._getUserName();
 
-			crui_http.sendRequest( "/cgi-bin/crui.py"+d, 
-					function( d )
+			window.setInterval( function()
 					{
-						crui._gotData( d );
-					} );
+						crui._getUpdates();
+					}, 5000 );
+		},
+
+		_getUserName:function()
+		{
+			var unDiv = document.createElement("div");
+			unDiv.style.backgroundColor = "#ffffff";
+			unDiv.style.position = "absolute";
+			unDiv.style.border = "solid 2px #000000";
+			unDiv.style.left = "10px";
+			unDiv.style.top = "10px";
+			unDiv.style.textAlign = "center";
+			unDiv.style.padding = "8px 8px";
+			document.body.appendChild( unDiv );
+
+			var form = document.createElement("form");
+			unDiv.appendChild( form );
+
+			var fieldset = document.createElement("fieldset");
+			form.appendChild(fieldset);
+
+			var legend = document.createElement("legend");
+			fieldset.appendChild(legend);
+			legend.appendChild(document.createTextNode("Login using your Skype ID:"));
+
+			var lblUser = document.createElement("label");
+			fieldset.appendChild(lblUser);
+			lblUser.appendChild( document.createTextNode("Skype ID:") );
+
+			var txtUser = document.createElement("input");
+			txtUser.type = "text";
+			txtUser.id = "crui_username";
+			fieldset.appendChild(txtUser);
+
+			var login = document.createElement("input");
+			login.type = "submit";
+			login.value = "Login"
+			fieldset.appendChild(login);
+
+			lblUser.for = "crui_username";
+
+			this._loginWindow = unDiv;
+			this._loginUsername = txtUser;
+
+			txtUser.focus();
+
+			crui_event.attach( form, "submit", function(form,data)
+					{
+						crui._doLogin();
+					}, null );
+		},
+
+		_getUpdates:function()
+		{
+			if( !this._running )
+				return;
+			this._sendReq("gc",null);
 		},
 
 		_stickClick:function(index)
@@ -151,6 +270,18 @@ if( !this.crui )
 			s.setState(ns);
 		},
 
+		_doLogin:function()
+		{
+			this._username = this._loginUsername.value;
+			document.body.removeChild(this._loginWindow);
+			this._loginWindow = null;
+			this._loginUsername = null;
+
+			this._sendReq("gc",null);
+		},
+
+		_debugWidget:null,
+		_username:"no-one",
 		_divWrap:null,
 		_loaded:null,
 		_imgUrl:'',
@@ -159,6 +290,10 @@ if( !this.crui )
 		_avatarSticks:[],
 		_sticks:null,
 		_parent:null,
+		_loginWindow:null,
+		_loginUsername:null,
+		_lastReq:null,
+		_running:false,
 		void:0
 	}
 }
