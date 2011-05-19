@@ -2,6 +2,20 @@
  * Copyright (C) 2011 GeekGene, All Rights Reserved.
  */
 
+if( !this.crui_avatar )
+{
+	crui_avatar = function( wrap, img )
+	{
+		this._wrap = wrap;
+		this._img = img;
+
+		this.loadImage = function( src )
+		{
+			this._img.src = src;
+		}
+	}
+}
+
 if( !this.crui_stick )
 {
 	crui_stick = function( wrap, img )
@@ -62,7 +76,9 @@ if( !this.crui )
 		setDebugWidget:function( obj )
 		{
 			this._debugWidget = obj;
-			this._debugWidget.value = "";
+			while( this._debugWidget.childNodes.length>0 )
+				this._debugWidget.removeChild(
+						this._debugWidget.childNodes[0] );
 		},
 
 		init:function()
@@ -70,12 +86,16 @@ if( !this.crui )
 			this._loaded();
 		},
 
+		_getFullState:function()
+		{
+			this._sendReq(
+					"gs",
+					JSON.stringify( {"addr":0 } ) //, "full":true } )
+					);
+		},
+
 		_sendReq:function( msg, data )
 		{
-			if( this._lastReq!=null )
-				return;
-			this._lastReq = msg;
-
 			var d = new Date();
 			d = '?time=' + d.getTime();
 
@@ -89,7 +109,25 @@ if( !this.crui )
 
 			var url = "/cgi-bin/crui.py"+d;
 
-			this._debug( "SEND " + url + "\n  (" + form_data + ")\n" );
+			this._reqList.push( new Array(msg,url,form_data) );
+			this.__sendReq();
+		},
+
+		__sendReq:function()
+		{
+			if( this._lastReq!=null )
+				return;
+
+			if( this._reqList.length<1 )
+				return;
+			var v = this._reqList.shift();
+			var msg = v[0];
+			var url = v[1];
+			var form_data = v[2];
+
+			this._lastReq = msg;
+
+			//this._debug( "SEND " + url + "\n  (" + form_data + ")\n" );
 
 			crui_http.sendRequest( url, 
 					function( d )
@@ -103,9 +141,11 @@ if( !this.crui )
 		_debug:function(str)
 		{
 			if( !this._debugWidget )
-				return
-			var s = str + this._debugWidget.value;
-			this._debugWidget.value = s;
+				return;
+			this._debugWidget.appendChild(
+					document.createTextNode(str) );
+			this._debugWidget.appendChild(
+					document.createElement("br") );
 		},
 
 		_debugJson:function(obj)
@@ -129,12 +169,57 @@ if( !this.crui )
 
 		_gotData:function( data )
 		{
-			this._debug( "GOT ("+this._lastReq+") "+data+"\n" );
+			//this._debug( "("+this._lastReq+") "+data );
 			data = JSON.parse(data);
 			if( !this._running && this._lastReq == "gc" )
 				this._running = true;
+			//if( this._username != "no-one" )
+			//	this._avatarAvatars[0].loadImage(
+			//			"http://metacurrency.org/invitational/users/"+
+			//			this._username+".png");
+
+			if( this._lastReq == "gc" )
+				this._gotChange(data);
+			else if( this._lastReq == "gs" )
+				this._gotState(data);
+
 			this._lastReq = null;
-			//alert( this._debugJson(data) );
+			this.__sendReq();
+		},
+
+		_gotChange:function( data )
+		{
+			if(data["result"]>this._lastChange)
+			{
+				this._lastChange = data["result"];
+				this._debug("NewData! ("+this._lastChange+")\n");
+				this._getFullState();
+			}
+		},
+
+		_gotState:function( data )
+		{
+			if( data["status"]!="ok" )
+				return;
+			data = data["result"];
+			var room_addr = data["scapes"]["room-scape"];
+			for( var rr in room_addr )
+			{
+				room_addr = room_addr[rr];
+				break;
+			}
+			//this._debug("RoomAddr:"+room_addr);
+			data = data["receptors"][""+room_addr];
+			var occs = data["scapes"]["occupant-scape"];
+
+			var iUser=0;
+			for( var occ in occs )
+			{
+				this._avatarAvatars[iUser].loadImage(
+						"http://metacurrency.org/invitational/users/"+
+						occ+".png");
+				iUser+=1;
+			}
 		},
 
 		_initWidget:function()
@@ -164,6 +249,7 @@ if( !this.crui )
 				avW.style.left = avLoc[0]+"px";
 				avW.style.top = avLoc[1]+"px";
 				avW.style.border = "solid 2px #222222"
+				avW.style.background = "url(no_icon.png)";
 				avW.zIndex = 40;
 				this._divWrap.appendChild(avW);
 				var av = document.createElement("img");
@@ -172,6 +258,8 @@ if( !this.crui )
 				av.height=50;
 				av.zIndex = 41;
 				avW.appendChild(av);
+				this._avatarAvatars.push(
+						new crui_avatar(avW,av));
 
 				var stickLoc = this._avatarLocs[i];
 				var stickW = document.createElement("div");
@@ -280,6 +368,8 @@ if( !this.crui )
 			this._sendReq("gc",null);
 		},
 
+		_lastChange:-1,
+		_reqList:[],
 		_debugWidget:null,
 		_username:"no-one",
 		_divWrap:null,
@@ -287,6 +377,7 @@ if( !this.crui )
 		_imgUrl:'',
 		_imgSize:[100,100],
 		_avatarLocs:[],
+		_avatarAvatars:[],
 		_avatarSticks:[],
 		_sticks:null,
 		_parent:null,

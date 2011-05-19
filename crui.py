@@ -15,6 +15,7 @@ import sys, traceback
 import os
 import json
 import socket
+import select
 
 def get_well(name, default=""):
 	val = form.getfirst(name)
@@ -34,9 +35,29 @@ def doSend(s,data):
 	if not data is None:
 		s.send(data+"\n")
 	try:
-		dOut += s.recv(4096)
+		good = True
+		t = time.time()
+		while good:
+			il,ol,el = select.select([s],[],[s],.1)
+			if len(dOut)>0:
+				good = False
+			if len(il)>0:
+				dOut += s.recv(4096)
+				if time.time()-t<3:
+					good = True
 	except:
 		raise
+	idx = len(dOut)-1
+	while True:
+		if idx<0:
+			break;
+		c = dOut[idx]
+		if c == ' ' or c == '\t' or c == '\f' or c == '\n' or c == '\r' or c == '>':
+			idx-=1;
+		else:
+			break;
+	dOut = dOut[:idx+1]
+
 	return dOut
 
 def main():
@@ -62,10 +83,10 @@ def main():
 		msg = get_well("msg","gc")
 		data = get_well("data",None)
 
-		s = socket.socket(socket.AF_INET)
+		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		s.settimeout(5)
 		s.connect(("208.78.103.116",3333))
-		s.settimeout(1)
+		s.settimeout(None)
 
 		doSend(s,None)
 
@@ -75,7 +96,7 @@ def main():
 			msg += " " + data
 		dataOut = doSend(s,msg)
 
-		print the_top + dataOut[:-3]
+		print the_top + dataOut
 
 		s.close()
 
