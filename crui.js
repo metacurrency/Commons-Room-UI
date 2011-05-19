@@ -171,21 +171,25 @@ if( !this.crui )
 		_gotData:function( data )
 		{
 			var dbg = data.substr(0,100);
+
 			this._debug( "GOT("+this._lastReq+") "+dbg );
-			data = JSON.parse(data);
-			if( data.length>0&&data[0].length>1&&data[0][0]=="error" )
-				this._debug("ERROR: "+data[0][1]);
+			
+			dataobj = JSON.parse(data);
+			if( dataobj.length>0&&dataobj[0].length>1&&dataobj[0][0]=="error" )
+				this._debug("ERROR: "+dataobj[0][1]);
+			
 			if( !this._running && this._lastReq == "gc" )
 				this._running = true;
-			//if( this._username != "no-one" )
-			//	this._avatarAvatars[0].loadImage(
-			//			"http://metacurrency.org/invitational/users/"+
-			//			this._username+".png");
 
 			if( this._lastReq == "gc" )
-				this._gotChange(data);
+				this._gotChange(dataobj);
 			else if( this._lastReq == "gs" )
-				this._gotState(data);
+				this._gotState(dataobj);
+			else if( this._lastReq == "matcom" || 
+					this._lastReq == "matenter" ||
+					this._lastReq == "matsit"
+					)
+				alert( data );
 
 			this._lastReq = null;
 			this.__sendReq();
@@ -213,6 +217,7 @@ if( !this.crui )
 				room_addr = room_addr[rr];
 				break;
 			}
+			this._roomAddr = room_addr;
 
 			//find our user address
 			var user_addr = data["scapes"]["user-scape"];
@@ -231,7 +236,7 @@ if( !this.crui )
 			this._isMatrice = false;
 			for( var m in mats )
 			{
-				if( m == this._usraddr )
+				if( parseInt(mats[m]) == parseInt(this._useraddr) )
 				{
 					this._isMatrice = true;
 					break;
@@ -240,19 +245,31 @@ if( !this.crui )
 
 			//get the occupants & find our occid
 			var occs = data["scapes"]["occupant-scape"];
+			this._occupants = {};
 
-			var iUser=0;
 			for( var occ in occs )
 			{
+				this._occupants[occs[occ]] = occ;
 				if( occ == this._username )
 					this._occaddr = occs[occ];
-				this._avatarAvatars[iUser].loadImage(
-						"http://metacurrency.org/invitational/users/"+
-						occ+".png");
-				iUser+=1;
 			}
 
+			//fill in the chairs
+			var chairs = data["scapes"]["chair-scape"];
+			for( var chair in chairs )
+			{
+				if( chairs[chair] == this._occaddr )
+					this._chairid = chair;
+				this._avatarAvatars[chair].loadImage(
+						"http://metacurrency.org/invitational/users/"+
+						this._occupants[chairs[chair]]+".png");
+			}
+
+			if( this._isMatrice )
+				this._setupMatriceControls();
+
 			this._debug("Got(room:"+room_addr+",usr:"+this._useraddr+
+					",chair:"+this._chairid+
 					",occ:"+this._occaddr+",mat:"+
 					(this._isMatrice?"true":"false")+")");
 		},
@@ -330,51 +347,16 @@ if( !this.crui )
 
 		_getUserName:function()
 		{
-			var unDiv = document.createElement("div");
-			unDiv.style.backgroundColor = "#ffffff";
-			unDiv.style.position = "absolute";
-			unDiv.style.border = "solid 2px #000000";
-			unDiv.style.left = "10px";
-			unDiv.style.top = "10px";
-			unDiv.style.textAlign = "center";
-			unDiv.style.padding = "8px 8px";
-			document.body.appendChild( unDiv );
-
-			var form = document.createElement("form");
-			unDiv.appendChild( form );
-
-			var fieldset = document.createElement("fieldset");
-			form.appendChild(fieldset);
-
-			var legend = document.createElement("legend");
-			fieldset.appendChild(legend);
-			legend.appendChild(document.createTextNode("Login using your Skype ID:"));
-
-			var lblUser = document.createElement("label");
-			fieldset.appendChild(lblUser);
-			lblUser.appendChild( document.createTextNode("Skype ID:") );
-
-			var txtUser = document.createElement("input");
-			txtUser.type = "text";
-			txtUser.id = "crui_username";
-			fieldset.appendChild(txtUser);
-
-			var login = document.createElement("input");
-			login.type = "submit";
-			login.value = "Login"
-			fieldset.appendChild(login);
-
-			lblUser.for = "crui_username";
-
-			this._loginWindow = unDiv;
-			this._loginUsername = txtUser;
-
-			txtUser.focus();
-
-			crui_event.attach( form, "submit", function(form,data)
+			this._loginDlg = new crui_dlg(
+					"Login using your Skype ID:",
+					["Skype ID:"],
+					function(form,data)
 					{
 						crui._doLogin();
-					}, null );
+					},
+					null,
+					"Login"
+					);
 		},
 
 		_getUpdates:function()
@@ -395,23 +377,212 @@ if( !this.crui )
 
 		_doLogin:function()
 		{
-			this._username = this._loginUsername.value;
-			document.body.removeChild(this._loginWindow);
-			this._loginWindow = null;
-			this._loginUsername = null;
+			if( !this._loginDlg )
+				return;
+			this._username = this._loginDlg._elems[0].value;
+			this._loginDlg.destroyDialog();
+			this._loginDlg = null;
 
 			this._sendReq("gc","gc",null);
 		},
 
+		_setupMatriceControls:function()
+		{
+			if( this._matriceControls )
+				return;
+
+			var d = document.createElement("div");
+			this._matriceControls = d;
+			d.style.position = "absolute";
+			d.style.left = "0px";
+			d.style.top = "0px";
+			d.style.border = "solid 2px #000000";
+			d.style.backgroundColor = "#CCFFCC";
+			document.body.appendChild(d);
+
+			//command
+			var c = document.createElement("a");
+			c.style.fontWeight = "bold";
+			c.style.cursor = "pointer";
+			d.appendChild(c);
+			c.appendChild(document.createTextNode("command"));
+
+			crui_event.attach( c, "click", function(c,data)
+					{
+						crui._matriceCommand();
+					}, null );
+
+			d.appendChild(document.createTextNode(" | "));
+
+			//enter
+			var c = document.createElement("a");
+			c.style.fontWeight = "bold";
+			c.style.cursor = "pointer";
+			d.appendChild(c);
+			c.appendChild(document.createTextNode("enter"));
+
+			crui_event.attach( c, "click", function(c,data)
+					{
+						crui._matriceEnter();
+					}, null );
+
+			d.appendChild(document.createTextNode(" | "));
+
+			//sit
+			var c = document.createElement("a");
+			c.style.fontWeight = "bold";
+			c.style.cursor = "pointer";
+			d.appendChild(c);
+			c.appendChild(document.createTextNode("sit"));
+
+			crui_event.attach( c, "click", function(c,data)
+					{
+						crui._matriceSit();
+					}, null );
+		},
+
+		_matriceCommand:function()
+		{
+			if( this._loginDlg )
+			{
+				this._loginDlg.destroyDialog();
+				this._loginDlg = null;
+			}
+			this._loginDlg = new crui_dlg(
+					"Manual Scape Command",
+					["command (i.e. 'gs')","message (i.e. '{\"addr\":0}"],
+					function(form,data)
+					{
+						crui._doMatriceCommand();
+					},
+					null,
+					"Submit"
+					);
+		},
+
+		_doMatriceCommand:function()
+		{
+			if( !this._loginDlg )
+				return;
+			var msg = this._loginDlg._elems[0].value;
+			var data = this._loginDlg._elems[1].value;
+
+			this._loginDlg.destroyDialog();
+			this._loginDlg = null;
+
+			if( msg.length<1 )
+				return;
+
+			this._sendReq("matcom",msg,data.length>0?data:null);
+		},
+
+		_matriceEnter:function()
+		{
+			if( this._loginDlg )
+			{
+				this._loginDlg.destroyDialog();
+				this._loginDlg = null;
+			}
+			this._loginDlg = new crui_dlg(
+					"Cause a user to enter the room",
+					["Skype Id:"],
+					function(form,data)
+					{
+						crui._doMatriceEnter();
+					},
+					null,
+					"Submit"
+					);
+		},
+
+		_doMatriceEnter:function()
+		{
+			if( !this._loginDlg )
+				return;
+			var username = this._loginDlg._elems[0].value;
+
+			this._loginDlg.destroyDialog();
+			this._loginDlg = null;
+
+			if( username.length<1 )
+				return;
+
+			this._sendReq("matenter","ss", JSON.stringify(
+					{
+						"to":this._roomAddr,
+						"signal":"door->enter",
+						"params": {
+							"password":"pass",
+							"name":username,
+							"data":{}
+						}
+					})
+					);
+		},
+
+		_matriceSit:function()
+		{
+			if( this._loginDlg )
+			{
+				this._loginDlg.destroyDialog();
+				this._loginDlg = null;
+			}
+			this._loginDlg = new crui_dlg(
+					"Place an occupant in a chair",
+					["Skype Id:","Chair Id:"],
+					function(form,data)
+					{
+						crui._doMatriceSit();
+					},
+					null,
+					"Submit"
+					);
+		},
+
+		_doMatriceSit:function()
+		{
+			if( !this._loginDlg )
+				return;
+			var username = this._loginDlg._elems[0].value;
+			var chair = parseInt(this._loginDlg._elems[1].value);
+
+			this._loginDlg.destroyDialog();
+			this._loginDlg = null;
+
+			if( username.length<1 )
+				return;
+
+			for( occ in this._occupants )
+			{
+				if( this._occupants[occ] == username )
+				{
+					this._sendReq("matsit","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"matrice->sit",
+								"params": {
+									"addr":occ,
+									"chair":chair
+								}
+							})
+							);
+					break;
+				}
+			}
+		},
+
+		_occupants:{},
+		_roomAddr:-1,
 		_lastChange:-1,
 		_reqList:[],
 		_debugWidget:null,
 		_username:"no-one",
 		_useraddr:-1,
 		_occaddr:-1,
+		_chairid:-1,
 		_isMatrice:false,
 		_divWrap:null,
-		_loaded:null,
+		_loaded:null, //callback to page
 		_imgUrl:'',
 		_imgSize:[100,100],
 		_avatarLocs:[],
@@ -419,11 +590,71 @@ if( !this.crui )
 		_avatarSticks:[],
 		_sticks:null,
 		_parent:null,
-		_loginWindow:null,
-		_loginUsername:null,
+		_loginDlg:null,
 		_lastReq:null,
 		_running:false,
+		_matriceControls:null,
 		void:0
+	}
+}
+
+if( !this.crui_dlg )
+{
+	crui_dlg = function( title, elems, cb, cbdata, subtext )
+	{
+		this._elems = [];
+		this._dlgWindow = null;
+
+		this.destroyDialog = function()
+		{
+			document.body.removeChild(this._dlgWindow);
+			this._dlgWindow = null;
+			this._elems = [];
+		}
+
+		var unDiv = document.createElement("div");
+		this._dlgWindow = unDiv;
+		unDiv.style.background = "url(bg.png) repeat-x scroll 0 0 #909090";
+		unDiv.style.position = "absolute";
+		unDiv.style.border = "solid 2px #000000";
+		unDiv.style.left = "10px";
+		unDiv.style.top = "10px";
+		unDiv.style.textAlign = "center";
+		unDiv.style.padding = "8px 8px";
+		document.body.appendChild( unDiv );
+
+		var form = document.createElement("form");
+		unDiv.appendChild( form );
+
+		var fieldset = document.createElement("fieldset");
+		form.appendChild(fieldset);
+
+		var legend = document.createElement("legend");
+		fieldset.appendChild(legend);
+		legend.appendChild(document.createTextNode(title));
+
+		for( var elem in elems )
+		{
+			var lbl = document.createElement("label");
+			fieldset.appendChild(lbl);
+			lbl.appendChild( document.createTextNode(elems[elem]) );
+
+			var txt = document.createElement("input");
+			txt.type = "text";
+			fieldset.appendChild(txt);
+			this._elems.push(txt);
+
+			fieldset.appendChild(document.createElement("br"));
+		}
+
+		var sub = document.createElement("input");
+		sub.type = "submit";
+		sub.value = subtext;
+		fieldset.appendChild(sub);
+
+		this._elems[0].focus();
+
+		crui_event.attach( form, "submit", cb, cbdata );
 	}
 }
 
