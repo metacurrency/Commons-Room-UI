@@ -90,7 +90,9 @@ def main():
 
 		doSend(s,None)
 
-		doSend(s,username)
+		rsp = doSend(s,username)
+		if rsp.find("status")<0 or rsp.find("ok")<0:
+			raise Exception("Could not log in with username '"+username+"'")
 
 		if not (data is None):
 			msg += " " + data

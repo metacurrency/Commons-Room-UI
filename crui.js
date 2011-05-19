@@ -90,11 +90,12 @@ if( !this.crui )
 		{
 			this._sendReq(
 					"gs",
+					"gs",
 					JSON.stringify( {"addr":0 } ) //, "full":true } )
 					);
 		},
 
-		_sendReq:function( msg, data )
+		_sendReq:function( res_type, msg, data )
 		{
 			var d = new Date();
 			d = '?time=' + d.getTime();
@@ -109,7 +110,7 @@ if( !this.crui )
 
 			var url = "/cgi-bin/crui.py"+d;
 
-			this._reqList.push( new Array(msg,url,form_data) );
+			this._reqList.push( new Array(res_type,url,form_data) );
 			this.__sendReq();
 		},
 
@@ -121,13 +122,13 @@ if( !this.crui )
 			if( this._reqList.length<1 )
 				return;
 			var v = this._reqList.shift();
-			var msg = v[0];
+			var res_type = v[0];
 			var url = v[1];
 			var form_data = v[2];
 
-			this._lastReq = msg;
+			this._lastReq = res_type;
 
-			//this._debug( "SEND " + url + "\n  (" + form_data + ")\n" );
+			this._debug( "SEND " + url + "\n  (" + form_data + ")\n" );
 
 			crui_http.sendRequest( url, 
 					function( d )
@@ -169,8 +170,11 @@ if( !this.crui )
 
 		_gotData:function( data )
 		{
-			//this._debug( "("+this._lastReq+") "+data );
+			var dbg = data.substr(0,100);
+			this._debug( "GOT("+this._lastReq+") "+dbg );
 			data = JSON.parse(data);
+			if( data.length>0&&data[0].length>1&&data[0][0]=="error" )
+				this._debug("ERROR: "+data[0][1]);
 			if( !this._running && this._lastReq == "gc" )
 				this._running = true;
 			//if( this._username != "no-one" )
@@ -202,24 +206,55 @@ if( !this.crui )
 			if( data["status"]!="ok" )
 				return;
 			data = data["result"];
+			//get our room address
 			var room_addr = data["scapes"]["room-scape"];
 			for( var rr in room_addr )
 			{
 				room_addr = room_addr[rr];
 				break;
 			}
-			//this._debug("RoomAddr:"+room_addr);
+
+			//find our user address
+			var user_addr = data["scapes"]["user-scape"];
+			for( var ur in user_addr )
+			{
+				if( ur == this._username )
+				{
+					this._useraddr = user_addr[ur];
+					break;
+				}
+			}
+
+			//are we a matrice?
 			data = data["receptors"][""+room_addr];
+			var mats = data["matrices"];
+			this._isMatrice = false;
+			for( var m in mats )
+			{
+				if( m == this._usraddr )
+				{
+					this._isMatrice = true;
+					break;
+				}
+			}
+
+			//get the occupants & find our occid
 			var occs = data["scapes"]["occupant-scape"];
 
 			var iUser=0;
 			for( var occ in occs )
 			{
+				if( occ == this._username )
+					this._occaddr = occs[occ];
 				this._avatarAvatars[iUser].loadImage(
 						"http://metacurrency.org/invitational/users/"+
 						occ+".png");
 				iUser+=1;
 			}
+
+			this._debug("Got(room:"+room_addr+",usr:"+this._useraddr+
+					",occ:"+this._occaddr+",mat:"+
+					(this._isMatrice?"true":"false")+")");
 		},
 
 		_initWidget:function()
@@ -346,7 +381,7 @@ if( !this.crui )
 		{
 			if( !this._running )
 				return;
-			this._sendReq("gc",null);
+			this._sendReq("gc","gc",null);
 		},
 
 		_stickClick:function(index)
@@ -365,13 +400,16 @@ if( !this.crui )
 			this._loginWindow = null;
 			this._loginUsername = null;
 
-			this._sendReq("gc",null);
+			this._sendReq("gc","gc",null);
 		},
 
 		_lastChange:-1,
 		_reqList:[],
 		_debugWidget:null,
 		_username:"no-one",
+		_useraddr:-1,
+		_occaddr:-1,
+		_isMatrice:false,
 		_divWrap:null,
 		_loaded:null,
 		_imgUrl:'',
