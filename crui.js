@@ -9,13 +9,23 @@ if( !this.crui_avatar )
 		this._wrap = wrap;
 		this._img = img;
 		this.name = "";
+		this.occaddr = -1;
+		this._status = "";
 
-		this.setChair = function( src, _name )
+		this.setChair = function( src, _name, _occaddr, __status )
 		{
 			this._img.style.display = 'block';
 			this._img.src = src;
 			this.name = _name;
-			this._img.title = _name;
+			this._img.title = _name + " ("+__status+")";
+			this.occaddr = _occaddr;
+			this._status = __status;
+
+			if( this._status == "away" )
+			{
+				this._wrap.style.background = "url("+src+")";
+				this._img.src="Away_Icon.png";
+			}
 		}
 
 		this.noOne = function()
@@ -48,7 +58,7 @@ if( !this.crui_stick )
 				case this.STATE_WANT:
 					this._wrap.style.display = "block";
 					this._img.src = "stick_want.png";
-					this._wrap.style.border = "solid 2px #ffff00"
+					this._wrap.style.border = "solid 2px #c66dff"
 					break;
 				case this.STATE_HAS:
 					this._wrap.style.display = "block";
@@ -242,7 +252,8 @@ if( !this.crui )
 					this._lastReq == "matreagent" ||
 					this._lastReq == "stickgive" ||
 					this._lastReq == "stickreq" ||
-					this._lastReq == "stickrel"
+					this._lastReq == "stickrel" ||
+					this._lastReq == "status"
 					)
 			{
 				this._hideWait();
@@ -319,6 +330,16 @@ if( !this.crui )
 					this._occaddr = occs[occ];
 			}
 
+			this._usernameStatus = {};
+			//get status-s
+			var statscape = data["scapes"]["status-scape"];
+			for( var socc in statscape )
+			{
+				this._usernameStatus[this._occupants[socc]] = 
+					statscape[socc];
+			}
+
+
 			//fill in the chairs
 			var chairNots = {};
 			for( var id in this._avatarAvatars )
@@ -328,10 +349,13 @@ if( !this.crui )
 			{
 				if( chairs[chair] == this._occaddr )
 					this._chairid = chair;
+				var username = this._occupants[chairs[chair]];
 				this._avatarAvatars[chair].setChair(
 						"http://metacurrency.org/invitational/users/"+
-						this._occupants[chairs[chair]]+".png",
-						this._occupants[chairs[chair]]);
+						username+".png",
+						username,
+						chairs[chair],
+						this._usernameStatus[username]);
 				chairNots[chair] = false;
 			}
 			for( var chair in chairNots )
@@ -422,6 +446,11 @@ if( !this.crui )
 				avW.appendChild(num);
 				num.appendChild(document.createTextNode(i));
 
+				crui_event.attach( av, "click", function(obj,data)
+						{
+							crui._avatarClick(data);
+						}, this._avatarAvatars.length-1 );
+
 				var stickLoc = this._avatarLocs[i];
 				var stickW = document.createElement("div");
 				stickW.style.width="20px";
@@ -444,6 +473,10 @@ if( !this.crui )
 						{
 							crui._stickClick(data);
 						}, this._avatarSticks.length-1 );
+				crui_event.attach( stick, "contextmenu", function(obj,data)
+						{
+							crui._stickDblClick(data);
+						}, this._avatarSticks.length-1 );
 			}
 
 			this._getUserName();
@@ -451,7 +484,7 @@ if( !this.crui )
 			window.setInterval( function()
 					{
 						crui._getUpdates();
-					}, 5000 );
+					}, 3000 );
 		},
 
 		_getUserName:function()
@@ -481,7 +514,35 @@ if( !this.crui )
 				this._getFullState();
 		},
 
-		_stickClick:function(index)
+		_avatarClick:function(index)
+		{
+			if( this._waitDlg )
+				return;
+
+			var a = this._avatarAvatars[index];
+			var s = this._avatarSticks[index];
+
+			if( this._isMatrice || a.name == this._username )
+			{
+				var stat = "away";
+				if( this._usernameStatus[a.name] == "away" )
+					var stat = "present";
+
+				var addr = a.occaddr;
+				this._showWait();
+				this._sendReq("status","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"matrice->update-status",
+								"params": {
+									"addr":parseInt(addr),
+									"status":stat
+									}
+							}));
+			}
+		},
+
+		_stickDblClick:function(index)
 		{
 			if( this._waitDlg )
 				return;
@@ -509,6 +570,41 @@ if( !this.crui )
 							{
 								"to":this._roomAddr,
 								"signal":"stick->give",
+								"params":a.name
+							})
+							);
+				}
+			}
+		},
+
+		_stickClick:function(index)
+		{
+			if( this._waitDlg )
+				return;
+
+			var a = this._avatarAvatars[index];
+			var s = this._avatarSticks[index];
+
+			if( this._isMatrice )
+			{
+				if( s._state == s.STATE_HAS )
+				{
+					this._showWait();
+					this._sendReq("stickrel","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"stick->release",
+								"params":a.name
+							})
+							);
+				}
+				else
+				{
+					this._showWait();
+					this._sendReq("stickreq","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"stick->request",
 								"params":a.name
 							})
 							);
@@ -817,6 +913,7 @@ if( !this.crui )
 		_matEnterUsername:"",
 		_matEnterUserId:-1,
 		_allUserAddrs:{},
+		_usernameStatus:{},
 		_occupants:{},
 		_roomAddr:-1,
 		_lastChange:-1,
@@ -1026,7 +1123,8 @@ if( !this.crui_event )
 
 		attach:function(obj,type,func,data)
 		{
-			obj.id = "CRUI_ID_"+(this._cur_id++);
+			if( !obj.id )
+				obj.id = "CRUI_ID_"+(this._cur_id++);
 			if( !this.id_cache[obj.id] )
 				this.id_cache[obj.id] = {};
 			this.id_cache[obj.id][type] = new Array(obj,func,data);
@@ -1046,6 +1144,13 @@ if( !this.crui_event )
 
 				var a = crui_event.id_cache[target.id][type];
 				a[1](a[0],a[2]);
+
+				if (ev.preventDefault)
+					ev.preventDefault();
+				ev.returnValue = false;
+				if (ev.stopPropagation)
+					ev.stopPropagation();
+				ev.cancelBubble = true;
 			}
 			if (obj.addEventListener)
 				obj.addEventListener(type, dlfn, false);
