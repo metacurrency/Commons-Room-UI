@@ -15,6 +15,7 @@ if( !this.crui_avatar )
 			this._img.style.display = 'block';
 			this._img.src = src;
 			this.name = _name;
+			this._img.title = _name;
 		}
 
 		this.noOne = function()
@@ -118,14 +119,16 @@ if( !this.crui )
 
 			var form_data = "username="+encodeURIComponent(
 					this._username);
-			form_data += "&msg="+encodeURIComponent(msg);
+			form_data += "&cmd="+encodeURIComponent(msg);
 			if( data )
 			{
 				form_data += "&data="+encodeURIComponent(data);
 			}
 
-			var url = "/cgi-bin/crui.py"+d;
+			//var url = "/cgi-bin/crui.py"+d;
+			var url = "/"+d;
 
+			this._debug(">>push("+res_type+")");
 			this._reqList.push( new Array(res_type,url,form_data) );
 			this.__sendReq();
 		},
@@ -144,7 +147,8 @@ if( !this.crui )
 
 			this._lastReq = res_type;
 
-			this._debug( "SEND " + url + "\n  (" + form_data + ")\n" );
+			this._debug( "SEND " + url + "\n  (" + 
+					unescape(form_data) + ")\n" );
 
 			crui_http.sendRequest( url, 
 					function( d )
@@ -201,22 +205,36 @@ if( !this.crui )
 				this._gotChange(dataobj);
 			else if( this._lastReq == "gs" )
 				this._gotState(dataobj);
+			else if( this._lastReq == "matpreenter" )
+			{
+				this._matEnterUserId = dataobj["result"];
+				this._sendReq("matenter","ss", JSON.stringify(
+						{
+							"to":this._roomAddr,
+							"signal":"door->enter",
+							"params": {
+								"password":"pass",
+								"name":this._matEnterUsername,
+								"data":{}
+							}
+						})
+						);				
+			}
 			else if( this._lastReq == "matenter" )
 			{
 				var un = this._matEnterUsername;
-				//alert(un+" addr:"+this._allUserAddrs[un]+
-				//		", occ:"+dataobj["result"]);
+				alert(un+" addr:"+this._allUserAddrs[un]+
+						", occ:"+dataobj["result"]);
 				this._sendReq("matreagent","ss", JSON.stringify(
 						{
 							"to":this._roomAddr,
 							"signal":"matrice->make-agent",
 							"params": {
-								"addr":this._allUserAddrs[un],
+								"addr":this._matEnterUserId,
 								"occupant":dataobj["result"]
 							}
 						})
 						);
-				this._hideWait();
 			}
 			else if( this._lastReq == "matcom" || 
 					this._lastReq == "matsit" ||
@@ -396,6 +414,13 @@ if( !this.crui )
 				avW.appendChild(av);
 				this._avatarAvatars.push(
 						new crui_avatar(avW,av));
+				var num = document.createElement("div");
+				num.style.position = "absolute";
+				num.style.left = "0px";
+				num.style.top = "0px";
+				num.zIndex = 42;
+				avW.appendChild(num);
+				num.appendChild(document.createTextNode(i));
 
 				var stickLoc = this._avatarLocs[i];
 				var stickW = document.createElement("div");
@@ -447,7 +472,9 @@ if( !this.crui )
 		{
 			if( !this._running )
 				return;
-			if( this._roomAddr > -1 )
+			if( this._reqList.length>0 )
+				this.__sendReq();
+			else if( this._roomAddr > -1 )
 				this._sendReq("gc","gc",JSON.stringify(
 							{"addr":this._roomAddr}));
 			else
@@ -662,17 +689,10 @@ if( !this.crui )
 
 			this._showWait();
 			this._matEnterUsername = username;
-			this._sendReq("matenter","ss", JSON.stringify(
-					{
-						"to":this._roomAddr,
-						"signal":"door->enter",
-						"params": {
-							"password":"pass",
-							"name":username,
-							"data":{}
-						}
-					})
-					);
+			this._sendReq("matpreenter","ss",JSON.stringify(
+						{"to":0,
+						"signal":"self->host-user",
+						"params":username}));
 		},
 
 		_matriceLeave:function()
@@ -795,6 +815,7 @@ if( !this.crui )
 		},
 
 		_matEnterUsername:"",
+		_matEnterUserId:-1,
 		_allUserAddrs:{},
 		_occupants:{},
 		_roomAddr:-1,
