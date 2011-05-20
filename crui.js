@@ -136,7 +136,7 @@ if( !this.crui )
 			}
 
 			//var url = "/cgi-bin/crui.py"+d;
-			var url = "/"+d;
+			var url = "/cmd"+d;
 
 			this._debug(">>push("+res_type+")");
 			this._reqList.push( new Array(res_type,url,form_data) );
