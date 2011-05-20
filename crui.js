@@ -223,8 +223,8 @@ if( !this.crui )
 			else if( this._lastReq == "matenter" )
 			{
 				var un = this._matEnterUsername;
-				alert(un+" addr:"+this._allUserAddrs[un]+
-						", occ:"+dataobj["result"]);
+				//alert(un+" addr:"+this._allUserAddrs[un]+
+				//		", occ:"+dataobj["result"]);
 				this._sendReq("matreagent","ss", JSON.stringify(
 						{
 							"to":this._roomAddr,
