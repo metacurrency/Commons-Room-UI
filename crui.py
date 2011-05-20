@@ -37,7 +37,7 @@ def log( name, str ):
 	f.flush()
 	f.close()
 
-def doSend(name, s,data):
+def doSend(name, s, data):
 	dOut = ""
 	if not data is None:
 		log(name, "Sending: "+str(data))

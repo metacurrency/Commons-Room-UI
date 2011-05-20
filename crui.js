@@ -201,12 +201,36 @@ if( !this.crui )
 				this._gotChange(dataobj);
 			else if( this._lastReq == "gs" )
 				this._gotState(dataobj);
+			else if( this._lastReq == "matenter" )
+			{
+				var un = this._matEnterUsername;
+				//alert(un+" addr:"+this._allUserAddrs[un]+
+				//		", occ:"+dataobj["result"]);
+				this._sendReq("matreagent","ss", JSON.stringify(
+						{
+							"to":this._roomAddr,
+							"signal":"matrice->make-agent",
+							"params": {
+								"addr":this._allUserAddrs[un],
+								"occupant":dataobj["result"]
+							}
+						})
+						);
+				this._hideWait();
+			}
 			else if( this._lastReq == "matcom" || 
-					this._lastReq == "matenter" ||
 					this._lastReq == "matsit" ||
-					this._lastReq == "stickgive"
+					this._lastReq == "matleave" ||
+					this._lastReq == "matreagent" ||
+					this._lastReq == "stickgive" ||
+					this._lastReq == "stickreq" ||
+					this._lastReq == "stickrel"
 					)
-				alert( data );
+			{
+				this._hideWait();
+				this._getFullState();
+				//alert( data );
+			}
 
 			this._lastReq = null;
 			this.__sendReq();
@@ -214,7 +238,7 @@ if( !this.crui )
 
 		_gotChange:function( data )
 		{
-			if(data["result"]>this._lastChange)
+			if(data["result"]!=this._lastChange)
 			{
 				this._lastChange = data["result"];
 				this._debug("NewData! ("+this._lastChange+")\n");
@@ -226,6 +250,11 @@ if( !this.crui )
 		{
 			if( data["status"]!="ok" )
 				return;
+			if( this._hideWaitOk )
+			{
+				this._actualHideWait();
+			}
+
 			data = data["result"];
 			//get our room address
 			var room_addr = data["scapes"]["room-scape"];
@@ -236,14 +265,15 @@ if( !this.crui )
 			}
 			this._roomAddr = room_addr;
 
+			this._allUserAddrs = {};
 			//find our user address
 			var user_addr = data["scapes"]["user-scape"];
 			for( var ur in user_addr )
 			{
+				this._allUserAddrs[ur] = user_addr[ur];
 				if( ur == this._username )
 				{
 					this._useraddr = user_addr[ur];
-					break;
 				}
 			}
 
@@ -306,6 +336,8 @@ if( !this.crui )
 					var state = stickscape[chairs[""+s]];
 					if( state == "have-it" )
 						stick.setState(stick.STATE_HAS);
+					else if( state == "want-it" )
+						stick.setState(stick.STATE_WANT);
 					else
 					{
 						if( this._isMatrice || 
@@ -415,33 +447,69 @@ if( !this.crui )
 		{
 			if( !this._running )
 				return;
-			this._sendReq("gc","gc",null);
+			if( this._roomAddr > -1 )
+				this._sendReq("gc","gc",JSON.stringify(
+							{"addr":this._roomAddr}));
+			else
+				this._getFullState();
 		},
 
 		_stickClick:function(index)
 		{
+			if( this._waitDlg )
+				return;
+
 			var a = this._avatarAvatars[index];
 			var s = this._avatarSticks[index];
 
 			if( this._isMatrice )
 			{
-				this._sendReq("stickgive","ss", JSON.stringify(
-						{
-							"to":this._roomAddr,
-							"signal":"stick->give",
-							"params":a.name
-						})
-						);
+				if( s._state == s.STATE_HAS )
+				{
+					this._showWait();
+					this._sendReq("stickrel","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"stick->release",
+								"params":a.name
+							})
+							);
+				}
+				else
+				{
+					this._showWait();
+					this._sendReq("stickgive","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"stick->give",
+								"params":a.name
+							})
+							);
+				}
 			}
 			else if( this._username == a.name )
 			{
-				this._sendReq("stickreq","ss", JSON.stringify(
-						{
-							"to":this._roomAddr,
-							"signal":"stick->request",
-							"params":this._username
-						})
-						);
+				this._showWait();
+				if( s._state == s.STATE_HAS || s._state == s.STATE_WANT )
+				{
+					this._sendReq("stickrel","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"stick->release",
+								"params":this._username
+							})
+							);
+				}
+				else
+				{
+					this._sendReq("stickreq","ss", JSON.stringify(
+							{
+								"to":this._roomAddr,
+								"signal":"stick->request",
+								"params":this._username
+							})
+							);
+				}
 			}
 		},
 
@@ -450,7 +518,7 @@ if( !this.crui )
 			if( !this._loginDlg )
 				return;
 			this._username = this._loginDlg._elems[0].value;
-			this._loginDlg.destroyDialog();
+			this._loginDlg.destroy();
 			this._loginDlg = null;
 
 			this._sendReq("gc","gc",null);
@@ -498,6 +566,20 @@ if( !this.crui )
 
 			d.appendChild(document.createTextNode(" | "));
 
+			//leave
+			var c = document.createElement("a");
+			c.style.fontWeight = "bold";
+			c.style.cursor = "pointer";
+			d.appendChild(c);
+			c.appendChild(document.createTextNode("leave"));
+
+			crui_event.attach( c, "click", function(c,data)
+					{
+						crui._matriceLeave();
+					}, null );
+
+			d.appendChild(document.createTextNode(" | "));
+
 			//sit
 			var c = document.createElement("a");
 			c.style.fontWeight = "bold";
@@ -515,7 +597,7 @@ if( !this.crui )
 		{
 			if( this._loginDlg )
 			{
-				this._loginDlg.destroyDialog();
+				this._loginDlg.destroy();
 				this._loginDlg = null;
 			}
 			this._loginDlg = new crui_dlg(
@@ -537,12 +619,13 @@ if( !this.crui )
 			var msg = this._loginDlg._elems[0].value;
 			var data = this._loginDlg._elems[1].value;
 
-			this._loginDlg.destroyDialog();
+			this._loginDlg.destroy();
 			this._loginDlg = null;
 
 			if( msg.length<1 )
 				return;
 
+			this._showWait();
 			this._sendReq("matcom",msg,data.length>0?data:null);
 		},
 
@@ -550,7 +633,7 @@ if( !this.crui )
 		{
 			if( this._loginDlg )
 			{
-				this._loginDlg.destroyDialog();
+				this._loginDlg.destroy();
 				this._loginDlg = null;
 			}
 			this._loginDlg = new crui_dlg(
@@ -571,12 +654,14 @@ if( !this.crui )
 				return;
 			var username = this._loginDlg._elems[0].value;
 
-			this._loginDlg.destroyDialog();
+			this._loginDlg.destroy();
 			this._loginDlg = null;
 
 			if( username.length<1 )
 				return;
 
+			this._showWait();
+			this._matEnterUsername = username;
 			this._sendReq("matenter","ss", JSON.stringify(
 					{
 						"to":this._roomAddr,
@@ -590,11 +675,52 @@ if( !this.crui )
 					);
 		},
 
+		_matriceLeave:function()
+		{
+			if( this._loginDlg )
+			{
+				this._loginDlg.destroy();
+				this._loginDlg = null;
+			}
+			this._loginDlg = new crui_dlg(
+					"Cause a user to leave the room",
+					["Skype Id:"],
+					function(form,data)
+					{
+						crui._doMatriceLeave();
+					},
+					null,
+					"Submit"
+					);
+		},
+
+		_doMatriceLeave:function()
+		{
+			if( !this._loginDlg )
+				return;
+			var username = this._loginDlg._elems[0].value;
+
+			this._loginDlg.destroy();
+			this._loginDlg = null;
+
+			if( username.length<1 )
+				return;
+
+			this._showWait();
+			this._sendReq("matleave","ss", JSON.stringify(
+					{
+						"to":this._roomAddr,
+						"signal":"door->leave",
+						"params": username
+					})
+					);
+		},
+
 		_matriceSit:function()
 		{
 			if( this._loginDlg )
 			{
-				this._loginDlg.destroyDialog();
+				this._loginDlg.destroy();
 				this._loginDlg = null;
 			}
 			this._loginDlg = new crui_dlg(
@@ -616,7 +742,7 @@ if( !this.crui )
 			var username = this._loginDlg._elems[0].value;
 			var chair = parseInt(this._loginDlg._elems[1].value);
 
-			this._loginDlg.destroyDialog();
+			this._loginDlg.destroy();
 			this._loginDlg = null;
 
 			if( username.length<1 )
@@ -626,6 +752,7 @@ if( !this.crui )
 			{
 				if( this._occupants[occ] == username )
 				{
+					this._showWait();
 					this._sendReq("matsit","ss", JSON.stringify(
 							{
 								"to":this._roomAddr,
@@ -641,6 +768,34 @@ if( !this.crui )
 			}
 		},
 
+		_showWait:function()
+		{
+			if( this._waitDlg )
+				return;
+			if( this._matriceControls )
+				this._matriceControls.style.display = "none";
+			this._hideWaitOk = false;
+			this._waitDlg = new crui_wait("Please wait...");
+		},
+
+		_hideWait:function()
+		{
+			this._hideWaitOk = true;
+		},
+
+		_actualHideWait:function()
+		{
+			if( this._waitDlg )
+			{
+				this._waitDlg.destroy();
+				this._waitDlg = null;
+			}
+			if( this._matriceControls )
+				this._matriceControls.style.display = "block";
+		},
+
+		_matEnterUsername:"",
+		_allUserAddrs:{},
 		_occupants:{},
 		_roomAddr:-1,
 		_lastChange:-1,
@@ -661,10 +816,41 @@ if( !this.crui )
 		_sticks:null,
 		_parent:null,
 		_loginDlg:null,
+		_waitDlg:null,
+		_hideWaitOk:false,
 		_lastReq:null,
 		_running:false,
 		_matriceControls:null,
 		_void:0
+	}
+}
+
+if( !this.crui_wait )
+{
+	crui_wait = function( title )
+	{
+		this._obj = null;
+
+		this.destroy = function()
+		{
+			document.body.removeChild(this._obj);
+			this._obj = null;
+		}
+
+		var unDiv = document.createElement("div");
+		this._obj = unDiv;
+		unDiv.style.background = "url(bg.png) repeat-x scroll 0 0 #909090";
+		unDiv.style.position = "absolute";
+		unDiv.style.margin = "auto";
+		unDiv.style.left = "20px";
+		unDiv.style.top = "20px";
+		unDiv.zIndex = 30025;
+		unDiv.style.border = "solid 2px #000000";
+		unDiv.style.padding = "20px 20px";
+		document.body.appendChild( unDiv );
+
+		unDiv.appendChild( document.createTextNode( title ) );
+		unDiv.appendChild( document.createElement( "br" ) );
 	}
 }
 
@@ -675,7 +861,7 @@ if( !this.crui_dlg )
 		this._elems = [];
 		this._dlgWindow = null;
 
-		this.destroyDialog = function()
+		this.destroy = function()
 		{
 			document.body.removeChild(this._dlgWindow);
 			this._dlgWindow = null;
