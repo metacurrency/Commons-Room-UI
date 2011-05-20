@@ -30,9 +30,17 @@ def my_formatException():
 		out += str.replace('\n','\r\n')
 	return out
 
-def doSend(s,data):
+def log( name, str ):
+	fn = "/tmp/crui_py_log.%s" % name
+	f = file(fn,"ab")
+	f.write(" "+str+"\n");
+	f.flush()
+	f.close()
+
+def doSend(name, s,data):
 	dOut = ""
 	if not data is None:
+		log(name, "Sending: "+str(data))
 		s.send(data+"\n")
 	try:
 		good = True
@@ -57,7 +65,8 @@ def doSend(s,data):
 		else:
 			break;
 	dOut = dOut[:idx+1]
-
+	log(name, "Recieved: "+str(dOut))
+	
 	return dOut
 
 def main():
@@ -83,24 +92,31 @@ def main():
 		msg = get_well("msg","gc")
 		data = get_well("data",None)
 
+		log(username, "---\nCon From " + str(RemoteAddr) + ", " + str(UserAgent))
+		log(username, time.ctime())
+
+		log(username, username + " " + str(msg) + " " + str(data))
+
 		s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 		s.settimeout(5)
 		s.connect(("208.78.103.116",3333))
 		s.settimeout(None)
 
-		doSend(s,None)
+		doSend(username, s, None)
 
-		rsp = doSend(s,username)
+		rsp = doSend(username, s, username)
 		if rsp.find("status")<0 or rsp.find("ok")<0:
 			raise Exception("Could not log in with username '"+username+"'")
 
 		if not (data is None):
 			msg += " " + data
-		dataOut = doSend(s,msg)
+		dataOut = doSend(username, s, msg)
 
 		print the_top + dataOut
 
 		s.close()
+
+		log(username, "Completed Call\n---")
 
 	except BaseException, data:
 

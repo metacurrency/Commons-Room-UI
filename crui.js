@@ -8,10 +8,19 @@ if( !this.crui_avatar )
 	{
 		this._wrap = wrap;
 		this._img = img;
+		this.name = "";
 
-		this.loadImage = function( src )
+		this.setChair = function( src, _name )
 		{
+			this._img.style.display = 'block';
 			this._img.src = src;
+			this.name = _name;
+		}
+
+		this.noOne = function()
+		{
+			this._img.src = "";
+			this._img.style.display = 'none';
 		}
 	}
 }
@@ -26,6 +35,7 @@ if( !this.crui_stick )
 		this.STATE_NONE = 0;
 		this.STATE_WANT = 1;
 		this.STATE_HAS = 2;
+		this.STATE_HIDE = 3;
 
 		this._state = this.STATE_NONE;
 
@@ -35,14 +45,20 @@ if( !this.crui_stick )
 			switch( state )
 			{
 				case this.STATE_WANT:
+					this._wrap.style.display = "block";
 					this._img.src = "stick_want.png";
 					this._wrap.style.border = "solid 2px #ffff00"
 					break;
 				case this.STATE_HAS:
+					this._wrap.style.display = "block";
 					this._img.src = "stick.png";
 					this._wrap.style.border = "solid 2px #000000"
 					break;
+				case this.STATE_HIDE:
+					this._wrap.style.display = "none";
+					break;
 				default:
+					this._wrap.style.display = "block";
 					this._img.src = "stick_none.png";
 					this._wrap.style.border = "solid 2px #888888"
 					break;
@@ -187,7 +203,8 @@ if( !this.crui )
 				this._gotState(dataobj);
 			else if( this._lastReq == "matcom" || 
 					this._lastReq == "matenter" ||
-					this._lastReq == "matsit"
+					this._lastReq == "matsit" ||
+					this._lastReq == "stickgive"
 					)
 				alert( data );
 
@@ -255,14 +272,49 @@ if( !this.crui )
 			}
 
 			//fill in the chairs
+			var chairNots = {};
+			for( var id in this._avatarAvatars )
+				chairNots[id] = true;
 			var chairs = data["scapes"]["chair-scape"];
 			for( var chair in chairs )
 			{
 				if( chairs[chair] == this._occaddr )
 					this._chairid = chair;
-				this._avatarAvatars[chair].loadImage(
+				this._avatarAvatars[chair].setChair(
 						"http://metacurrency.org/invitational/users/"+
-						this._occupants[chairs[chair]]+".png");
+						this._occupants[chairs[chair]]+".png",
+						this._occupants[chairs[chair]]);
+				chairNots[chair] = false;
+			}
+			for( var chair in chairNots )
+			{
+				if( chairNots[chair] )
+				{
+					this._avatarAvatars[chair].noOne();
+					var stick = this._avatarSticks[chair];
+					stick.setState(stick.STATE_HIDE);
+				}
+			}
+
+			//display the talking stick
+			var stickscape = data["talking-stick"]["scapes"]["stick-scape"];
+			for( var s in this._avatarSticks )
+			{
+				if( chairs[""+s] )
+				{
+					var stick = this._avatarSticks[s];
+					var state = stickscape[chairs[""+s]];
+					if( state == "have-it" )
+						stick.setState(stick.STATE_HAS);
+					else
+					{
+						if( this._isMatrice || 
+								chairs[""+s] == this._occaddr )
+							stick.setState(stick.STATE_NONE);
+						else
+							stick.setState(stick.STATE_HIDE);
+					}
+				}
 			}
 
 			if( this._isMatrice )
@@ -368,11 +420,29 @@ if( !this.crui )
 
 		_stickClick:function(index)
 		{
+			var a = this._avatarAvatars[index];
 			var s = this._avatarSticks[index];
-			var ns = s._state+1;
-			if( ns>2 )
-				ns = 0;
-			s.setState(ns);
+
+			if( this._isMatrice )
+			{
+				this._sendReq("stickgive","ss", JSON.stringify(
+						{
+							"to":this._roomAddr,
+							"signal":"stick->give",
+							"params":a.name
+						})
+						);
+			}
+			else if( this._username == a.name )
+			{
+				this._sendReq("stickreq","ss", JSON.stringify(
+						{
+							"to":this._roomAddr,
+							"signal":"stick->request",
+							"params":this._username
+						})
+						);
+			}
 		},
 
 		_doLogin:function()
@@ -594,7 +664,7 @@ if( !this.crui )
 		_lastReq:null,
 		_running:false,
 		_matriceControls:null,
-		void:0
+		_void:0
 	}
 }
 
@@ -776,7 +846,7 @@ if( !this.crui_event )
 				obj.attachEvent("on" + type, dlfn);			
 		},
 
-		void:0
+		_void:0
 	}
 }
 
