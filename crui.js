@@ -12,12 +12,12 @@ if( !this.crui_avatar )
 		this.occaddr = -1;
 		this._status = "";
 
-		this.setChair = function( src, _name, _occaddr, __status )
+		this.setChair = function( src, _name, _full_name , _occaddr, __status )
 		{
 			this._img.style.display = 'block';
 			this._img.src = src;
 			this.name = _name;
-			this._img.title = _name + " ("+__status+")";
+			this._img.title = _full_name + " ("+__status+")";
 			this.occaddr = _occaddr;
 			this._status = __status;
 
@@ -225,7 +225,7 @@ if( !this.crui )
 							"params": {
 								"password":"pass",
 								"name":this._matEnterUsername,
-								"data":{}
+								"data":{"full-name":this._matEnterFullname}
 							}
 						})
 						);				
@@ -339,7 +339,6 @@ if( !this.crui )
 					statscape[socc];
 			}
 
-
 			//fill in the chairs
 			var chairNots = {};
 			for( var id in this._avatarAvatars )
@@ -354,6 +353,7 @@ if( !this.crui )
 						"http://metacurrency.org/invitational/users/"+
 						username+".png",
 						username,
+						data["occupants"][username] ? data["occupants"][username]["full-name"] : username,
 						chairs[chair],
 						this._usernameStatus[username]);
 				chairNots[chair] = false;
@@ -761,7 +761,7 @@ if( !this.crui )
 			}
 			this._loginDlg = new crui_dlg(
 					"Cause a user to enter the room",
-					["Skype Id:"],
+					["Skype Id:","Full Name:"],
 					function(form,data)
 					{
 						crui._doMatriceEnter();
@@ -775,7 +775,8 @@ if( !this.crui )
 		{
 			if( !this._loginDlg )
 				return;
-			var username = this._loginDlg._elems[0].value;
+  			var username = this._loginDlg._elems[0].value;
+  			var fullname = this._loginDlg._elems[1].value;
 
 			this._loginDlg.destroy();
 			this._loginDlg = null;
@@ -785,6 +786,8 @@ if( !this.crui )
 
 			this._showWait();
 			this._matEnterUsername = username;
+			this._matEnterFullname = fullname;
+			
 			this._sendReq("matpreenter","ss",JSON.stringify(
 						{"to":0,
 						"signal":"self->host-user",
@@ -911,6 +914,7 @@ if( !this.crui )
 		},
 
 		_matEnterUsername:"",
+		_matEnterFullname:"",
 		_matEnterUserId:-1,
 		_allUserAddrs:{},
 		_usernameStatus:{},
