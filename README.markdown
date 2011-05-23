@@ -1,6 +1,6 @@
 # The Commons Room UI
 
-![commons-room screen-shot](https://skitch.com/zippy314/fy3qp/commons-room-ui-test)
+![commons-room screen-shot](https://img.skitch.com/20110523-q1sgujimdwp5x6h5r4qmr21r8w.jpg)
 
 This project implements a JavaScript, browser-hosted user interface for the commons-room receptor complex that serves as a test-bed for the [ceptr platform](https://github.com/zippy/anansi).  Please see the [low-level documentation](https://github.com/zippy/anansi/blob/master/README-commons-room.markdown) on the commons-room, for a list of all the signals a commons-room receptor receives.
 
