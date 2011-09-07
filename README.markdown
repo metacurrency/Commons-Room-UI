@@ -6,8 +6,11 @@ This project implements a JavaScript, browser-hosted user interface for the comm
 
 ## Installation
 
-Follow the [Anansi installation instructions](https://github.com/zippy/anansi).  Then cd into the anansi directory and clone this repository to the htdocs sub-directory:
+Follow the [Anansi installation instructions](https://github.com/zippy/anansi).  Then cd into the anansi/htdocs directory (create the htdocs directory if necessary) and clone this repository into it:
 
+    $ cd anansi
+    $ mkdir htdocs
+    $ cd htdocs
     $ git clone git://github.com/metacurrency/Commons-Room-UI.git htdocs
 
 ## Usage
@@ -16,7 +19,7 @@ Run the server:
 
     $ lein run
 
-Point your browser at: http://localhost:8080
+Point your browser at: http://localhost:8080/commons-room
 
 
 ## Development

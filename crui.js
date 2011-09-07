@@ -363,12 +363,12 @@ if( !this.crui )
 					this._chairid = chair;
 				var username = this._occupants[chairs[chair]];
 				this._avatarAvatars[chair].setChair(
-				    (data["occupants"][username] && data["occupants"][username]["email"])  ? 
+				    (data["occupants"] && data["occupants"][username] && data["occupants"][username]["email"])  ? 
 				    get_gravatar(data["occupants"][username]["email"],50) :
 						"http://metacurrency.org/invitational/users/"+
 						username+".png",
 						username,
-						data["occupants"][username] ? data["occupants"][username]["full-name"] : username,
+						data["occupants"] && data["occupants"][username] ? data["occupants"][username]["full-name"] : username,
 						chairs[chair],
 						this._usernameStatus[username]);
 				chairNots[chair] = false;
